@@ -1,4 +1,6 @@
 {
+  "name": "ecommerce-product-carousel",
+  "version": "1.0.0",
   "dependencies": {
     "@tailwindcss/cli": "^4.2.1",
     "tailwindcss": "^4.2.1"

@@ -1,62 +1,23 @@
-# 🚀 Platter Challenge - eCommerce Product Grid
+# 🚀 High-Performance eCommerce Product Carousel & Grid
 
-A high-performance, fully responsive product grid carousel built as a technical challenge to showcase proficiency in Tailwind CSS, semantic HTML, and Vanilla JavaScript. This project focuses on delivering complex interactive design patterns while maintaining clean code and optimal Core Web Vitals.
+A fully responsive, high-performance product showcase component built with strict adherence to modern frontend engineering practices. This project demonstrates how to deliver complex interactive eCommerce design patterns (such as dynamic layouts, responsive grid behaviors, and interactive state changes) using minimal dependencies to maintain optimal Core Web Vitals.
 
-## 📋 Challenge Requirements Delivered
-This project strictly follows all the constraints and objectives specified in the challenge instructions:
+## ✨ Key Features & Implementation Highlights
 
-Product Display: Renders a minimum of 10 product cards.
+- **Vanilla JavaScript Architecture:** Dependency-free slider and layout behavior keeping the initial bundle size incredibly small—crucial for eCommerce conversion rates.
+- **Tailwind CSS Styling:** Rapid, utility-first styling ensuring pixel-perfect responsive design across mobile, tablet, and desktop viewports.
+- **Smart Mobile Adaptation ("Show More"):** On mobile devices, only the first 4 products are displayed initially. A custom "Show More" button triggers a smooth dropdown animation to reveal the remaining products without blocking the main thread.
+- **Interactive UX States:** \* _Image Swap on Hover:_ Smooth secondary image swapping on product hover with pre-loading patterns to avoid visual delay or jank.
+  - _Custom Scrollbar UI:_ Enhanced accessibility with an interactive scrollbar that dynamically responds to hover and touch events.
+- **Semantic HTML5:** Built from the ground up with SEO, accessibility (a11y), and structural best practices in mind.
 
-Responsive Layout: fully functional on both desktop and mobile devices.
+## 🛠️ Tech Stack & Tools
 
-Mobile-Specific Interaction (Show More):
+- **HTML5:** Semantic markup for structure.
+- **Tailwind CSS:** Utility-first framework for precise layouts and styling.
+- **JavaScript (ES6+):** Plain Vanilla JS for all dynamic interactions.
 
-Only the first 4 products are visible on mobile.
+## ⚙️ How to Run Locally
 
-A "Show More" button triggers a smooth dropdown animation to reveal the remaining 6 products.
-
-Interactive Features:
-
-Image Swap on Hover: Hovering over a product image swaps it with a secondary image.
-
-Custom Scrollbar UI: The scrollbar thumb width/height increases to 6px when hovered over or touched.
-
-Specific Tech Stack: Built with semantic HTML, JavaScript (Vanilla JS) for all functionality, and Tailwind CSS.
-
-Placeholders: Used free stock images from Unsplash.
-
-## 🛠 Tech Stack & Tools
-
-HTML5: Semantic markup for improved SEO and accessibility.
-
-CSS3: Tailwind CSS framework used for utility-first styling.
-
-JavaScript (ES6+): Plain Vanilla JS for all dynamic interactions.
-
-## ✨ Implementation Highlights
-
-Smooth Dropdown (Mobile): Implemented using CSS transitions and height manipulation for a clean, non-blocking animation.
-
-Optimized Image Swapping: Pre-loaded or lazy-loaded secondary images to ensure no delay or jank during hover interactions.
-
-Custom Styling: Utilized Tailwind's customization capabilities to create a precise UI matching the requested design and custom scrollbar behavior.
-
-## 📦 How to Run
-
-Clone the repository:
-
-Bash
-
-git init
-
-git remote add origin https://github.com/GRandow/platter-challenge.git
-
-git pull origin main
-
-Open index.html (or your local development environment) to preview.
-
-## 🧠 Engineering Decisions
-
-Choosing Vanilla JavaScript
-
-Instead of relying on heavy third-party carousel or animation libraries, I opted for Vanilla JS. This keeps the initial bundle size incredibly small, crucial for eCommerce stores where fast initial load times are directly linked to conversion rates.
+1. Clone the repository:
+   git clone https://github.com/GRandow/ecommerce-product-carousel.git
