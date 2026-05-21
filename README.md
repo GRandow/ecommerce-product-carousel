@@ -20,4 +20,6 @@ A fully responsive, high-performance product showcase component built with stric
 ## ⚙️ How to Run Locally
 
 1. Clone the repository:
+   ```bash
    git clone https://github.com/GRandow/ecommerce-product-carousel.git
+   ```
