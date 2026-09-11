@@ -1,5 +1,7 @@
 # 🚀 eCommerce Product Carousel & Grid
 
+🔗 **[Live Demo](https://grandow.github.io/ecommerce-product-carousel/)**
+
 A fully responsive, high-performance product showcase component built with strict adherence to modern frontend engineering practices. This project demonstrates how to deliver complex interactive eCommerce design patterns (such as dynamic layouts, responsive grid behaviors, and interactive state changes) using minimal dependencies to maintain optimal Core Web Vitals.
 
 ## ✨ Key Features & Implementation Highlights
@@ -23,3 +25,7 @@ A fully responsive, high-performance product showcase component built with stric
    ```bash
    git clone https://github.com/GRandow/ecommerce-product-carousel.git
    ```
+   
+🌐 Live Project
+
+**[View the eCommerce Product Carousel](https://grandow.github.io/ecommerce-product-carousel/)**
