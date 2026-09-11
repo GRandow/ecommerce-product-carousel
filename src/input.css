@@ -20,49 +20,106 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
-  
+
   .no-scrollbar {
     -ms-overflow-style: none;
-    scrollbar-width: none; 
+    scrollbar-width: none;
   }
 
-  .product-card {
-    flex: 0 0 calc((100% - (24px * 4)) / 4.5) !important; 
-    min-width: calc((100% - (24px * 4)) / 4.5) !important; 
-    scroll-snap-align: start;
-  }
+  /* --- Carousel track (md and up) --- */
+  @media (width >= 48rem) {
+    #carouselContainer {
+      /* how many cards fit in the viewport (the .5 is the "peek" of the next card) */
+      --cards-visible: 4.5;
+      --card-gaps: 4;
+      --card-gap: 24px;
+      /* space after the last card = same right padding as the header (md:pr-15 / lg:pr-32) */
+      --carousel-end-gap: 60px;
+      gap: var(--card-gap);
+      overscroll-behavior-x: contain;
+    }
 
-  @media (max-width: 1090px) {
     .product-card {
-      flex: 0 0 calc((100% - 20px) / 3.5) !important;
-      min-width: calc((100% - 20px) / 3.5) !important;
+      flex: 0 0 calc((100% - var(--card-gap) * var(--card-gaps)) / var(--cards-visible));
+      min-width: 0;
+      scroll-snap-align: start;
+    }
+
+    /* keeps the last card off the viewport edge (margin, not padding, so its image stays the same size) */
+    .product-card:last-child {
+      margin-right: var(--carousel-end-gap);
     }
   }
 
-  @media (max-width: 825px) {
-    .product-card {
-      flex: 0 0 calc((100% - 20px) / 3) !important;
-      min-width: calc((100% - 20px) / 3) !important;
+  @media (width >= 64rem) {
+    #carouselContainer {
+      --carousel-end-gap: 128px;
     }
   }
 
-  @media (min-width: 768px) {
-    .product-card {
-      opacity: 1 !important;
-      max-height: none !important;
-      overflow: visible !important;
-      pointer-events: auto !important;
+  @media (width >= 48rem) and (width <= 1090px) {
+    #carouselContainer {
+      --cards-visible: 3.5;
+      --card-gaps: 3;
+    }
+  }
+
+  @media (width >= 48rem) and (width <= 825px) {
+    #carouselContainer {
+      --cards-visible: 3;
+      --card-gaps: 2;
     }
   }
 
   #carouselContainer {
     cursor: default;
     user-select: auto;
-    -webkit-user-drag: auto; 
+    -webkit-user-drag: auto;
     overflow-x: auto;
-    scroll-behavior: smooth;
   }
 
+  /* images must not start a native drag, otherwise drag-to-scroll breaks */
+  #carouselContainer img {
+    -webkit-user-drag: none;
+  }
+
+  /* while the user drags the cards with the mouse */
+  #carouselContainer.is-dragging {
+    cursor: grabbing;
+    user-select: none;
+  }
+
+  #carouselContainer.is-dragging .product-card {
+    pointer-events: none;
+  }
+
+  /* --- Custom scrollbar --- */
+  #carousel-scroll {
+    transition: all 0.3s ease;
+    touch-action: none;
+  }
+
+  /* invisible hit area so the 4px bar is easy to grab */
+  #carousel-scroll::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -12px;
+    bottom: -12px;
+  }
+
+  #carousel-scroll:hover {
+    height: 6px;
+  }
+
+  #scroll-indicator {
+    top: 50%;
+    transform: translateY(-50%);
+    will-change: left;
+  }
+
+  /* --- Mobile "Show More" --- */
   .hidden-product {
     max-height: 0;
     opacity: 0;
@@ -73,5 +130,20 @@
   .hidden-product.opacity-100 {
     max-height: 1000px;
     opacity: 1;
+  }
+
+  @media (width < 48rem) {
+    /* fully removed from the grid until "Show More", so hidden rows don't leave gaps */
+    .hidden-product:not(.is-open) {
+      display: none;
+    }
+  }
+
+  @media (width >= 48rem) {
+    .product-card {
+      opacity: 1 !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
   }
 }

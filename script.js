@@ -107,8 +107,6 @@ function generateStars(rating) {
 products.forEach((product, index) => {
   const clone = template.content.cloneNode(true);
   const cardContainer = clone.querySelector('div');
-  
-  cardContainer.className = "product-card flex-none w-full lg:w-[21%] md:mr-6 group cursor-pointer";
 
   //create a secondary image for the "hover" effect
   const imgContainer = document.createElement("div");
@@ -152,7 +150,8 @@ products.forEach((product, index) => {
   }
 
   // --- Responsive Visibility Logic ---
-  const baseClasses = "product-card flex-none w-full md:w-[21%] md:mr-6 group cursor-pointer transition-[opacity,max-height] ease-in-out duration-500";
+  // Card width/gap on md+ comes from the .product-card / #carouselContainer rules in input.css
+  const baseClasses = "product-card w-full group cursor-pointer transition-[opacity,max-height] ease-in-out duration-500";
 
   if (index > 3) {
     cardContainer.className = `${baseClasses} hidden-product opacity-0 max-h-0 overflow-hidden pointer-events-none md:opacity-100 md:max-h-none md:overflow-visible md:pointer-events-auto`;
@@ -162,63 +161,320 @@ products.forEach((product, index) => {
   carouselContainer.appendChild(clone);
 });
 
+// =====================================================================
+// Scroll & Interaction (md and up)
+// - mouse wheel over the carousel  -> one card per notch
+// - click & drag on the cards      -> free scroll, snaps to a card on release
+// - custom scrollbar               -> click to jump, drag the thumb (keeps grab offset)
+// - trackpad / touch               -> native scrolling + CSS scroll-snap
+// =====================================================================
 const carousel = document.getElementById("carouselContainer");
-const indicator = document.getElementById("scroll-indicator");
-
-// --- Scroll & Interaction ---
-carouselContainer.addEventListener("scroll", () => {
-  window.requestAnimationFrame(() => {
-    const scrollLeft = carouselContainer.scrollLeft;
-    const maxScroll = carouselContainer.scrollWidth - carouselContainer.clientWidth;
-
-    if (maxScroll > 0) {
-      const scrollPercent = (scrollLeft / maxScroll) * 100;
-      
-      const travelDistance = 100 - 33.333; 
-      const indicatorPosition = (scrollPercent / 100) * travelDistance;
-
-      indicator.style.left = `${indicatorPosition}%`;
-    }
-  });
-}, { passive: true });
-
 const scrollBar = document.getElementById("carousel-scroll");
+const indicator = document.getElementById("scroll-indicator");
+const cards = Array.from(carousel.querySelectorAll(".product-card"));
+const desktopQuery = window.matchMedia("(min-width: 48rem)"); // Tailwind `md`
 
-scrollBar.addEventListener("mousedown", (e) => {
-  moveCarouselByBar(e);
-  
-  const onMouseMove = (event) => moveCarouselByBar(event);
-  const onMouseUp = () => {
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
-  };
-  
-  window.addEventListener("mousemove", onMouseMove);
-  window.addEventListener("mouseup", onMouseUp);
-});
+const DRAG_THRESHOLD = 6;   // px before a mousedown counts as a drag (keeps clicks working)
+const WHEEL_STEP = 50;      // accumulated deltaY needed to move one card
+const WHEEL_LOCK = 150;     // ms between wheel steps
 
-function moveCarouselByBar(e) {
-  const rect = scrollBar.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const clickPercent = Math.max(0, Math.min(1, x / rect.width));
-  const maxScroll = carousel.scrollWidth - carousel.clientWidth;
-  
-  carousel.scrollTo({
-    left: clickPercent * maxScroll,
-    behavior: "auto" 
-  });
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const isCarouselMode = () => desktopQuery.matches;
+const maxScroll = () => Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+
+// scrollLeft of each card's start edge, clamped to the scrollable range
+function cardPositions() {
+  const base = carousel.getBoundingClientRect().left - carousel.scrollLeft;
+  const max = maxScroll();
+  return cards.map(card => clamp(card.getBoundingClientRect().left - base, 0, max));
 }
 
-//Show More" Button Logic (Mobile Only)
-showMoreBtn.addEventListener('click', () => {
-  const hiddenProducts = document.querySelectorAll('.hidden-product');
-  hiddenProducts.forEach(product => {
-    product.classList.remove('opacity-0', 'max-h-0', 'pointer-events-none');
-    product.style.maxHeight = "1000px"; 
-    product.style.opacity = "1";
-    product.style.pointerEvents = "auto";
+function nearestIndex(positions, x) {
+  let best = 0;
+  positions.forEach((pos, i) => {
+    if (Math.abs(pos - x) < Math.abs(positions[best] - x)) best = i;
   });
-  
+  return best;
+}
+
+// last card that can actually be reached as a snap point (the ones after it share the end position)
+function lastReachableIndex(positions) {
+  const end = positions[positions.length - 1];
+  const i = positions.findIndex(pos => pos >= end - 1);
+  return i === -1 ? positions.length - 1 : i;
+}
+
+// --- Scroll snap on/off ------------------------------------------------
+// CSS scroll-snap fights programmatic scrolling (it re-snaps on every scrollLeft
+// change), so it is turned off while the script drives the scroll and restored
+// once the scroll settles. `snapGeneration` invalidates stale restores.
+let snapGeneration = 0;
+let wheelTargetIndex = null; // card the wheel is heading to; null = read it from scrollLeft
+
+function disableSnap() {
+  snapGeneration++;
+  wheelTargetIndex = null;
+  carousel.style.scrollSnapType = "none";
+}
+
+function onScrollSettled(callback) {
+  let idleTimer;
+  const done = () => {
+    carousel.removeEventListener("scroll", onScroll);
+    clearTimeout(idleTimer);
+    callback();
+  };
+  const onScroll = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(done, 100);
+  };
+  carousel.addEventListener("scroll", onScroll, { passive: true });
+  idleTimer = setTimeout(done, 150); // also covers a scrollTo that produces no scroll event
+}
+
+// Smoothly scroll to `target` (a card start) with snap off, then hand control back to CSS snap
+function scrollToPosition(target) {
+  const generation = ++snapGeneration;
+  const restore = () => {
+    if (generation === snapGeneration) carousel.style.scrollSnapType = "";
+  };
+
+  if (Math.abs(carousel.scrollLeft - target) < 1) {
+    restore();
+    return;
+  }
+  carousel.style.scrollSnapType = "none";
+  carousel.scrollTo({ left: target, behavior: "smooth" });
+  onScrollSettled(restore);
+}
+
+// Land on the card nearest to `x` (drag / scrollbar releases)
+function settleAt(x) {
+  wheelTargetIndex = null;
+  const positions = cardPositions();
+  scrollToPosition(positions[nearestIndex(positions, x)]);
+}
+
+// --- Scrollbar indicator -----------------------------------------------
+let indicatorFrame = null;
+
+function updateIndicator() {
+  indicatorFrame = null;
+  const max = maxScroll();
+  const travel = scrollBar.clientWidth - indicator.offsetWidth;
+  if (max <= 0 || travel <= 0) {
+    indicator.style.left = "0px";
+    return;
+  }
+  const ratio = clamp(carousel.scrollLeft / max, 0, 1);
+  indicator.style.left = `${ratio * travel}px`;
+}
+
+function scheduleIndicatorUpdate() {
+  if (indicatorFrame === null) indicatorFrame = requestAnimationFrame(updateIndicator);
+}
+
+carousel.addEventListener("scroll", scheduleIndicatorUpdate, { passive: true });
+window.addEventListener("resize", () => {
+  wheelTargetIndex = null;
+  scheduleIndicatorUpdate();
+});
+if ("ResizeObserver" in window) {
+  new ResizeObserver(scheduleIndicatorUpdate).observe(carousel);
+}
+updateIndicator();
+
+// --- Mouse wheel -> horizontal, one card per notch ----------------------
+let wheelAccumulated = 0;
+let wheelResetTimer = null;
+let wheelTargetUntil = 0;
+let lastWheelStep = 0;
+
+carousel.addEventListener("wheel", (event) => {
+  if (!isCarouselMode() || event.ctrlKey || event.shiftKey) return;
+  // horizontal gesture (trackpad, shift+wheel): let the browser handle it natively
+  if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+  if (maxScroll() <= 0) return;
+
+  const unit = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 800 : 1;
+  const deltaY = event.deltaY * unit;
+  const direction = deltaY > 0 ? 1 : -1;
+  const now = performance.now();
+  const positions = cardPositions();
+  const lastIndex = lastReachableIndex(positions);
+
+  // where a scroll already in flight is heading; otherwise where we are now
+  if (wheelTargetIndex === null || now > wheelTargetUntil) {
+    wheelTargetIndex = nearestIndex(positions, carousel.scrollLeft);
+  }
+
+  // at either end: don't capture the wheel, so the page keeps scrolling normally
+  if ((direction > 0 && wheelTargetIndex >= lastIndex) || (direction < 0 && wheelTargetIndex <= 0)) {
+    wheelAccumulated = 0;
+    return;
+  }
+
+  event.preventDefault();
+
+  if (Math.sign(wheelAccumulated) !== direction) wheelAccumulated = 0;
+  wheelAccumulated += deltaY;
+  clearTimeout(wheelResetTimer);
+  wheelResetTimer = setTimeout(() => { wheelAccumulated = 0; }, 200);
+
+  if (Math.abs(wheelAccumulated) < WHEEL_STEP || now - lastWheelStep < WHEEL_LOCK) return;
+
+  wheelAccumulated = 0;
+  lastWheelStep = now;
+  wheelTargetIndex = clamp(wheelTargetIndex + direction, 0, lastIndex);
+  wheelTargetUntil = now + 600;
+  scrollToPosition(positions[wheelTargetIndex]);
+}, { passive: false });
+
+// --- Click & drag on the cards -----------------------------------------
+let drag = null;
+let suppressNextClick = false;
+
+carousel.addEventListener("pointerdown", (event) => {
+  if (!isCarouselMode() || event.pointerType === "touch" || event.button !== 0) return;
+  drag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startScroll: carousel.scrollLeft,
+    lastX: event.clientX,
+    lastTime: performance.now(),
+    velocity: 0,
+    moved: false,
+  };
+});
+
+carousel.addEventListener("pointermove", (event) => {
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  if (!(event.buttons & 1)) { // button was released somewhere we never heard about
+    finishDrag();
+    return;
+  }
+
+  if (!drag.moved) {
+    if (Math.abs(event.clientX - drag.startX) < DRAG_THRESHOLD) return;
+    drag.moved = true;
+    // start measuring from here so the first frame doesn't jump
+    drag.startX = event.clientX;
+    drag.startScroll = carousel.scrollLeft;
+    carousel.setPointerCapture(event.pointerId);
+    carousel.classList.add("is-dragging");
+    disableSnap();
+  }
+
+  const now = performance.now();
+  const elapsed = now - drag.lastTime;
+  if (elapsed > 0) {
+    const instant = (event.clientX - drag.lastX) / elapsed; // px per ms
+    drag.velocity = drag.velocity * 0.6 + instant * 0.4;
+    drag.lastX = event.clientX;
+    drag.lastTime = now;
+  }
+
+  carousel.scrollLeft = drag.startScroll - (event.clientX - drag.startX);
+});
+
+// Ends the current drag (if any): clears the drag state and lands on a card
+function finishDrag() {
+  if (!drag) return;
+  const { moved, velocity, lastTime } = drag;
+  drag = null;
+  if (!moved) return;
+
+  carousel.classList.remove("is-dragging"); // pointer capture is released by the browser itself
+
+  // a drag should not count as a click on the product
+  suppressNextClick = true;
+  setTimeout(() => { suppressNextClick = false; }, 0);
+
+  // fling: project the release velocity a little ahead, then land on a card
+  const stale = performance.now() - lastTime > 100;
+  const projected = carousel.scrollLeft - (stale ? 0 : clamp(velocity, -2.5, 2.5)) * 120;
+  settleAt(projected);
+}
+
+function endDrag(event) {
+  if (drag && event.pointerId === drag.pointerId) finishDrag();
+}
+
+carousel.addEventListener("pointerup", endDrag);
+carousel.addEventListener("pointercancel", endDrag);
+carousel.addEventListener("lostpointercapture", endDrag);
+carousel.addEventListener("click", (event) => {
+  if (suppressNextClick) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}, true);
+// no text selection / native image drag while a drag may be starting
+carousel.addEventListener("selectstart", (event) => { if (drag) event.preventDefault(); });
+carousel.addEventListener("dragstart", (event) => event.preventDefault());
+
+// --- Custom scrollbar: click to jump, drag the thumb --------------------
+let barDrag = null;
+
+function scrollLeftForBarX(clientX, grabOffset) {
+  const rect = scrollBar.getBoundingClientRect();
+  const travel = rect.width - indicator.offsetWidth;
+  if (travel <= 0) return 0;
+  const thumbLeft = clamp(clientX - rect.left - grabOffset, 0, travel);
+  return (thumbLeft / travel) * maxScroll();
+}
+
+scrollBar.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  event.preventDefault();
+
+  const thumb = indicator.getBoundingClientRect();
+  const onThumb = event.clientX >= thumb.left && event.clientX <= thumb.right;
+  barDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    // grabbing the thumb keeps the point you grabbed under the cursor; clicking the track centers it
+    grabOffset: onThumb ? event.clientX - thumb.left : thumb.width / 2,
+    moved: false,
+  };
+  scrollBar.setPointerCapture(event.pointerId);
+
+  if (!onThumb) settleAt(scrollLeftForBarX(event.clientX, barDrag.grabOffset));
+});
+
+scrollBar.addEventListener("pointermove", (event) => {
+  if (!barDrag || event.pointerId !== barDrag.pointerId) return;
+  if (!barDrag.moved) {
+    if (Math.abs(event.clientX - barDrag.startX) < 3) return; // ignore click jitter
+    barDrag.moved = true;
+    disableSnap();
+  }
+  carousel.scrollLeft = scrollLeftForBarX(event.clientX, barDrag.grabOffset);
+});
+
+function endBarDrag(event) {
+  if (!barDrag || event.pointerId !== barDrag.pointerId) return;
+  const { moved } = barDrag;
+  barDrag = null;
+  if (moved) settleAt(carousel.scrollLeft);
+}
+
+scrollBar.addEventListener("pointerup", endBarDrag);
+scrollBar.addEventListener("pointercancel", endBarDrag);
+scrollBar.addEventListener("lostpointercapture", endBarDrag);
+
+// --- "Show More" button (mobile only) ------------------------------------
+const showMoreBtn = document.getElementById("showMoreBtn");
+
+showMoreBtn.addEventListener("click", () => {
+  const hiddenProducts = document.querySelectorAll(".hidden-product");
+  hiddenProducts.forEach(product => {
+    product.classList.add("is-open");          // back into the grid (display: none -> block)
+    void product.offsetHeight;                 // let the browser see the collapsed state first
+    product.classList.remove("opacity-0", "max-h-0", "pointer-events-none");
+    product.classList.add("opacity-100");      // .hidden-product.opacity-100 animates max-height/opacity
+  });
+
   // Remove the button after use to clean up the UI
-  showMoreBtn.parentElement.classList.add('hidden');
+  showMoreBtn.parentElement.classList.add("hidden");
 });
